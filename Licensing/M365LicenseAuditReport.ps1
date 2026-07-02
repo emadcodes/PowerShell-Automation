@@ -1,5 +1,5 @@
 # ============================================================================
-# Tracked License Report
+# M365License Audit Report
 # ============================================================================
 
 $ErrorActionPreference = "Stop"
@@ -9,8 +9,8 @@ $CONFIG = @{
     # When IncludeAllUsers is $false, only these EmployeeType values are included.
     # Use one value or many, for example: @("Employee") or @("Employee", "Student")
     EmployeeTypes      = @("Contractor","Employee")
-    # Edit this map to add or remove tracked license groups without changing report logic.
-    TrackedLicenseGroups = [ordered]@{
+    # Edit this map to add or remove license groups without changing report logic.
+    LicenseGroups = [ordered]@{
         F3 = @("SPE_F1", "M365_F1")
         E3 = @("SPE_E3", "ENTERPRISEPACK")
         E5 = @("SPE_E5", "ENTERPRISEPREMIUM")
@@ -43,10 +43,10 @@ function Connect-Services {
     Print-Ok "Connected to Microsoft Graph"
 }
 
-function Get-TrackedLicenseReport {
+function Get-M365LicenseAuditReport {
     param(
         [string[]]$EmployeeTypes = @("Employee"),
-        [hashtable]$TrackedLicenseGroups,
+        [hashtable]$LicenseGroups,
         [bool]$IncludeAll = $false,
         [bool]$ResolveGroupNames = $false
     )
@@ -81,18 +81,18 @@ function Get-TrackedLicenseReport {
         Print-Info "Filtered to $($users.Count) users with EmployeeType in: $($employeeTypesToInclude -join ', ')"
     }
 
-    $trackedLicenseNames = @($TrackedLicenseGroups.Keys)
-    if ($trackedLicenseNames.Count -eq 0) {
-        throw "TrackedLicenseGroups is empty. Specify one or more tracked license groups in the config."
+    $licenseGroupNames = @($LicenseGroups.Keys)
+    if ($licenseGroupNames.Count -eq 0) {
+        throw "LicenseGroups is empty. Specify one or more license groups in the config."
     }
 
     $allSkus = Get-MgSubscribedSku -All
 
-    $trackedSkuMap = @{}
-    foreach ($licenseName in $trackedLicenseNames) {
-        $matchingSkus = $allSkus | Where-Object { $_.SkuPartNumber -in $TrackedLicenseGroups[$licenseName] }
+    $licenseSkuMap = @{}
+    foreach ($licenseName in $licenseGroupNames) {
+        $matchingSkus = $allSkus | Where-Object { $_.SkuPartNumber -in $LicenseGroups[$licenseName] }
         foreach ($sku in $matchingSkus) {
-            $trackedSkuMap[[string]$sku.SkuId] = @{
+            $licenseSkuMap[[string]$sku.SkuId] = @{
                 Name       = $licenseName
                 PartNumber = $sku.SkuPartNumber
             }
@@ -118,26 +118,26 @@ function Get-TrackedLicenseReport {
         
         $labelPartNumbers = @{}
         $labelAssignmentPaths = @{}
-        foreach ($licenseName in $trackedLicenseNames) {
+        foreach ($licenseName in $licenseGroupNames) {
             $labelPartNumbers[$licenseName] = @()
             $labelAssignmentPaths[$licenseName] = @()
         }
 
         $userSkuIds = @($user.AssignedLicenses | ForEach-Object { [string]$_.SkuId })
         foreach ($userSkuId in $userSkuIds) {
-            if ($trackedSkuMap.ContainsKey($userSkuId)) {
-                $skuInfo = $trackedSkuMap[$userSkuId]
+            if ($licenseSkuMap.ContainsKey($userSkuId)) {
+                $skuInfo = $licenseSkuMap[$userSkuId]
                 $labelPartNumbers[$skuInfo.Name] += $skuInfo.PartNumber
             }
         }
 
         foreach ($state in @($user.LicenseAssignmentStates)) {
             $stateSkuId = [string]$state.SkuId
-            if (-not $trackedSkuMap.ContainsKey($stateSkuId)) {
+            if (-not $licenseSkuMap.ContainsKey($stateSkuId)) {
                 continue
             }
 
-            $licenseName = $trackedSkuMap[$stateSkuId].Name
+            $licenseName = $licenseSkuMap[$stateSkuId].Name
             if ($state.AssignedByGroup) {
                 $groupId = [string]$state.AssignedByGroup
                 if (-not $ResolveGroupNames) {
@@ -155,17 +155,17 @@ function Get-TrackedLicenseReport {
             }
         }
 
-        $trackedLicenseSummary = @()
-        $trackedLicenseAssignmentSummary = @()
-        foreach ($licenseName in $trackedLicenseNames) {
+        $licenseSummary = @()
+        $licenseAssignmentSummary = @()
+        foreach ($licenseName in $licenseGroupNames) {
             $partNumbers = @($labelPartNumbers[$licenseName] | Select-Object -Unique)
             if ($partNumbers.Count -gt 0) {
-                $trackedLicenseSummary += "$licenseName ($($partNumbers -join ', '))"
+                $licenseSummary += "$licenseName ($($partNumbers -join ', '))"
             }
 
             $assignmentPaths = @($labelAssignmentPaths[$licenseName] | Select-Object -Unique)
             if ($assignmentPaths.Count -gt 0) {
-                $trackedLicenseAssignmentSummary += "${licenseName}: $($assignmentPaths -join ', ')"
+                $licenseAssignmentSummary += "${licenseName}: $($assignmentPaths -join ', ')"
             }
         }
 
@@ -179,9 +179,9 @@ function Get-TrackedLicenseReport {
             JobTitle           = $user.JobTitle
             UsageLocation      = $user.UsageLocation
             AccountEnabled     = $user.AccountEnabled
-            HasTrackedLicense  = ($trackedLicenseSummary.Count -gt 0)
-            TrackedLicenseSummary = if ($trackedLicenseSummary.Count -gt 0) { $trackedLicenseSummary -join '; ' } else { "None" }
-            TrackedLicenseAssignmentPaths = if ($trackedLicenseAssignmentSummary.Count -gt 0) { $trackedLicenseAssignmentSummary -join '; ' } else { "None" }
+            HasConfiguredLicense  = ($licenseSummary.Count -gt 0)
+            LicenseSummary = if ($licenseSummary.Count -gt 0) { $licenseSummary -join '; ' } else { "None" }
+            LicenseAssignmentPaths = if ($licenseAssignmentSummary.Count -gt 0) { $licenseAssignmentSummary -join '; ' } else { "None" }
         }) | Out-Null
     }
 
@@ -204,7 +204,7 @@ function Save-ReportOutput {
     }
 
     $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-    $fileName = "tracked_license_report_$timestamp.csv"
+    $fileName = "m365_license_audit_report_$timestamp.csv"
     $filePath = Join-Path $OutputFolder $fileName
 
     $Report | Export-Csv -Path $filePath -NoTypeInformation -Encoding UTF8
@@ -212,7 +212,7 @@ function Save-ReportOutput {
 }
 
 Connect-Services
-$report = Get-TrackedLicenseReport -EmployeeTypes $CONFIG.EmployeeTypes -TrackedLicenseGroups $CONFIG.TrackedLicenseGroups -IncludeAll $CONFIG.IncludeAllUsers -ResolveGroupNames $CONFIG.ResolveGroupNames
+$report = Get-M365LicenseAuditReport -EmployeeTypes $CONFIG.EmployeeTypes -LicenseGroups $CONFIG.LicenseGroups -IncludeAll $CONFIG.IncludeAllUsers -ResolveGroupNames $CONFIG.ResolveGroupNames
 Save-ReportOutput -Report $report -OutputFolder $CONFIG.OutputFolder
 
 # Calculate and display total execution time

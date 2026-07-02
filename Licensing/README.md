@@ -1,9 +1,9 @@
-# Tracked License Report (PowerShell)
+# M365 License Audit Report (PowerShell)
 
 This repository contains a PowerShell script that generates a CSV report of Microsoft 365 users and whether they have any configured tracked licenses, including how those licenses are assigned (direct vs. group-based).
 
 Primary script:
-- `TrackedLicensesReport.ps1`
+- `M365LicenseAuditReport.ps1`
 
 ## Why this is helpful
 
@@ -24,7 +24,7 @@ Benefits:
 
 ## What the script does
 
-`TrackedLicensesReport.ps1`:
+`M365LicenseAuditReport.ps1`:
 1. Connects to Microsoft Graph interactively.
 2. Retrieves users and selected user properties.
 3. Optionally filters users by `EmployeeType`.
@@ -52,7 +52,7 @@ Install-Module Microsoft.Graph -Scope CurrentUser
 
 ## Configuration
 
-Edit the `$CONFIG` block in `TrackedLicensesReport.ps1`.
+Edit the `$CONFIG` block in `M365LicenseAuditReport.ps1`.
 
 - `EmployeeTypes`: list of employee types to include when `IncludeAllUsers = $false`.
 - `TrackedLicenseGroups`: map friendly labels to SKU part numbers.
@@ -71,13 +71,13 @@ Current tracked map in this repository (example only, fully customizable):
 From the repository root:
 
 ```powershell
-pwsh .\TrackedLicensesReport.ps1
+pwsh .\M365LicenseAuditReport.ps1
 ```
 
 Or with Windows PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\TrackedLicensesReport.ps1
+powershell -ExecutionPolicy Bypass -File .\M365LicenseAuditReport.ps1
 ```
 
 The script will prompt for interactive sign-in to Microsoft Graph.
@@ -85,7 +85,7 @@ The script will prompt for interactive sign-in to Microsoft Graph.
 ## Output
 
 The script creates a CSV in:
-- `reports\tracked_license_report_yyyyMMdd_HHmmss.csv`
+- `reports\m365_license_audit_report_yyyyMMdd_HHmmss.csv`
 
 Key output columns include:
 - `ObjectId`
@@ -110,7 +110,7 @@ Key output columns include:
 
 This script is not limited to E3, F3, or E5.
 
-You can track any license set by editing `TrackedLicenseGroups` in `TrackedLicensesReport.ps1`. The labels are just friendly names, and each label can map to one or many SKU part numbers.
+You can track any license set by editing `TrackedLicenseGroups` in `M365LicenseAuditReport.ps1`. The labels are just friendly names, and each label can map to one or many SKU part numbers.
 
 ## Performance notes
 

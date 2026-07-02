@@ -1,0 +1,9 @@
+# Generated report/output folders (anywhere in repo)
+**/reports/
+**/output/
+**/exports/
+**/artifacts/
+
+# Generated timestamped CSV report files
+**/*_report_*.csv
+**/*_audit_*.csv
