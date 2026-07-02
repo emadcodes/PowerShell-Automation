@@ -1,153 +1,134 @@
-# Entra ID License Tracking Scripts
+# Tracked License Report (PowerShell)
 
-This repository contains PowerShell scripts to track Microsoft 365 license assignments in Entra ID and export results to CSV for reporting.
+This repository contains a PowerShell script that generates a CSV report of Microsoft 365 users and whether they have any configured tracked licenses, including how those licenses are assigned (direct vs. group-based).
 
-## Primary Scenario
+Primary script:
+- `TrackedLicensesReport.ps1`
 
-Use this when you need to answer questions like:
-- Which users have one or more licenses from a tracked list (for example F3/E3/E5/Power Apps)?
-- Were those licenses assigned directly or through groups?
-- Which employee populations should be included (all users or selected `EmployeeType` values)?
+## Why this is helpful
 
-This is useful for:
-- license governance
-- cleanup and right-sizing initiatives
-- monthly audit snapshots
-- preparing data for Excel or Power BI
+This report is useful for people who need quick, reliable license visibility without manually checking users one by one in Microsoft 365 portals.
 
-## Main Script
+Relevant audiences:
+- IT administrators: validate licensing coverage and assignment method.
+- Identity and access teams: detect group-based licensing patterns and direct assignments.
+- Procurement and finance partners: support license planning and audits.
+- Security and compliance teams: verify account and assignment consistency.
+- Managers and HR operations partners: understand employee/contractor license distribution when employee type filtering is used.
 
-- `AssignCoreLicense_Simple.ps1`
+Benefits:
+- Reduces manual effort and portal-click work.
+- Produces timestamped CSV evidence for audits and reviews.
+- Helps spot assignment inconsistencies across users.
+- Supports recurring operational reporting.
 
-This script generates a tracked-license report based on the SKU groups defined in `TrackedLicenseGroups`.
+## What the script does
 
-## How It Works
-
-1. Connects to Microsoft Graph with read-only directory/user scopes.
-2. Pulls users and optional employee-type filtered population.
-3. Resolves your configured tracked SKU part numbers to tenant SKU IDs.
-4. Checks each user for matching tracked licenses.
-5. Builds summary fields including assignment path (`Direct` or `Group: <id/name>`).
-6. Exports CSV to the `reports` folder.
+`TrackedLicensesReport.ps1`:
+1. Connects to Microsoft Graph interactively.
+2. Retrieves users and selected user properties.
+3. Optionally filters users by `EmployeeType`.
+4. Maps tracked labels (your choice) to one or more SKU part numbers.
+5. Determines tracked license presence and assignment path per user.
+6. Exports a timestamped CSV file to the `reports` folder.
 
 ## Prerequisites
 
-- PowerShell 7+ (recommended)
-- Microsoft Graph PowerShell SDK installed
+- PowerShell 7+ (recommended) or Windows PowerShell 5.1.
+- Microsoft Graph PowerShell SDK modules:
+  - `Microsoft.Graph.Authentication`
+  - `Microsoft.Graph.Users`
+  - `Microsoft.Graph.Identity.DirectoryManagement`
+  - `Microsoft.Graph.Groups` (needed when resolving group names)
+- Microsoft Entra permissions consented for your account:
+  - `User.Read.All`
+  - `Directory.Read.All`
 
-Install modules if needed:
+Install Graph modules (if not already installed):
 
 ```powershell
 Install-Module Microsoft.Graph -Scope CurrentUser
 ```
 
-Required delegated Graph permissions during sign-in:
-- `User.Read.All`
-- `Directory.Read.All`
-
-## Quick Start
-
-Run from this folder:
-
-```powershell
-pwsh .\AssignCoreLicense_Simple.ps1
-```
-
-Output file pattern:
-
-- `reports/tracked_license_report_yyyyMMdd_HHmmss.csv`
-
 ## Configuration
 
-Edit the `$CONFIG` block in `AssignCoreLicense_Simple.ps1`.
+Edit the `$CONFIG` block in `TrackedLicensesReport.ps1`.
 
-### 1) User Scope Controls
+- `EmployeeTypes`: list of employee types to include when `IncludeAllUsers = $false`.
+- `TrackedLicenseGroups`: map friendly labels to SKU part numbers.
+- `IncludeAllUsers`: when `$true`, ignores `EmployeeTypes` and reports on all users.
+- `ResolveGroupNames`: when `$true`, resolves group display names for group-based assignments (slower).
+- `OutputFolder`: destination folder for exported CSV files.
 
-- `IncludeAllUsers = $true`
-  - includes all users
-- `IncludeAllUsers = $false`
-  - filters users by `EmployeeTypes`
+Current tracked map in this repository (example only, fully customizable):
 
-Example:
+- `F3` -> `SPE_F1`, `M365_F1`
+- `E3` -> `SPE_E3`, `ENTERPRISEPACK`
+- `E5` -> `SPE_E5`, `ENTERPRISEPREMIUM`
 
-```powershell
-EmployeeTypes   = @("Contractor", "Employee")
-IncludeAllUsers = $false
-```
+## How to run
 
-### 2) Tracked License Groups
-
-`TrackedLicenseGroups` is the key extension point.
+From the repository root:
 
 ```powershell
-TrackedLicenseGroups = [ordered]@{
-    F3        = @("SPE_F1", "M365_F1")
-    E3        = @("SPE_E3", "ENTERPRISEPACK")
-    E5        = @("SPE_E5", "ENTERPRISEPREMIUM")
-    PowerApps = @("POWERAPPS_VIRAL", "POWERAPPS_PER_USER")
-}
+pwsh .\TrackedLicensesReport.ps1
 ```
 
-To add or remove what is tracked, only edit this map.
+Or with Windows PowerShell:
 
-### 3) Group Display Names vs Fast Mode
+```powershell
+powershell -ExecutionPolicy Bypass -File .\TrackedLicensesReport.ps1
+```
 
-- `ResolveGroupNames = $false` (faster)
-  - assignment path contains group IDs
-- `ResolveGroupNames = $true` (slower)
-  - assignment path includes group display names
+The script will prompt for interactive sign-in to Microsoft Graph.
 
-## CSV Output Columns
+## Output
 
-Core identity fields:
+The script creates a CSV in:
+- `reports\tracked_license_report_yyyyMMdd_HHmmss.csv`
+
+Key output columns include:
 - `ObjectId`
 - `UserPrincipalName`
 - `DisplayName`
-- `Mail`
 - `EmployeeType`
-- `Department`
-- `JobTitle`
-- `UsageLocation`
 - `AccountEnabled`
-
-Tracked-license fields:
 - `HasTrackedLicense`
 - `TrackedLicenseSummary`
 - `TrackedLicenseAssignmentPaths`
 
-### Delimiters
+## Example use cases
 
-- Between license groups: `; `
-- Within one group details: `, `
+- Monthly contractor license review.
+- Track any E*/F* family combinations (for example, E3, F3, E5) to understand how each license is assigned.
+- Identify users with direct assignment where group-based assignment is preferred.
+- Validate post-migration license state (e.g., F3 to E3 transitions).
+- Compare assignment behavior across tracked licenses for operational cleanup, governance, and audit readiness.
+- Produce evidence for compliance or internal control checks.
 
-Example values:
+## Important note
 
-```text
-TrackedLicenseSummary = E3 (SPE_E3); PowerApps (POWERAPPS_PER_USER)
-TrackedLicenseAssignmentPaths = E3: Direct; PowerApps: Group: 00000000-0000-0000-0000-000000000000
-```
+This script is not limited to E3, F3, or E5.
 
-## Behavior Notes
+You can track any license set by editing `TrackedLicenseGroups` in `TrackedLicensesReport.ps1`. The labels are just friendly names, and each label can map to one or many SKU part numbers.
 
-- `HasTrackedLicense` is boolean only:
-  - `True` if user has at least one tracked group
-  - `False` if user has none
-- If you track 5 groups and user has 2, summary fields contain only those 2.
-- CSV schema remains stable while summary content changes based on your tracked map.
+## Performance notes
+
+- `ResolveGroupNames = $false` runs faster because it avoids per-group display name lookup.
+- Very large tenants may take time because all users are enumerated.
+- Progress and ETA are shown while building the report.
 
 ## Troubleshooting
 
-- If prompted for sign-in each run, verify your Graph session and tenant context.
-- If no matches are found, verify SKU part numbers in `TrackedLicenseGroups` are valid for your tenant.
-- If assignment paths are only group IDs, set `ResolveGroupNames = $true`.
+- `Connect-MgGraph` permission errors:
+  - Ensure your account can consent to required Graph scopes.
+- Empty output or unexpected user set:
+  - Check `IncludeAllUsers` and `EmployeeTypes` values.
+- Missing license matches:
+  - Confirm SKU part numbers in `TrackedLicenseGroups` match your tenant SKUs.
 
-## Repository Hygiene
+## Security and operational guidance
 
-Recommended `.gitignore` entries:
-
-```gitignore
-reports/
-*.csv
-```
-
-Keep scripts in source control, but avoid committing generated report outputs.
+- Treat exported reports as potentially sensitive identity data.
+- Store CSV outputs in approved locations.
+- Limit access to report files based on least privilege.
